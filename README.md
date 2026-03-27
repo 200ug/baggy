@@ -1,4 +1,4 @@
-## baggy
+# baggy
 
 Unnecessarily complex wrapper to perform e2ee file synchronization over a central SSH server.
 
