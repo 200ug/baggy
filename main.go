@@ -56,7 +56,7 @@ func cmdInit(args []string) {
 		os.Exit(1)
 	}
 
-	if _, err := internal.NewRemoteConn(*compact, *privKey); err != nil {
+	if _, err := internal.NewRemoteConn(*compact, *privKey, false); err != nil {
 		fmt.Printf("[!] init failed: %v\n", err)
 		os.Exit(1)
 	}

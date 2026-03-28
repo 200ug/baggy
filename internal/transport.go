@@ -1,8 +1,11 @@
 package internal
 
 import (
+	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -76,8 +79,30 @@ type RemoteConn struct {
 }
 
 // Initializes a completely fresh remote connection config, verifies the SSH + SFTP connection
-// and finally persists the config (as UserRemoteConfig) to ~/.config/baggy.conf.
-func NewRemoteConn(compact string, privKeyPath string) (*RemoteConn, error) {
+// and finally persists the config (as UserRemoteConfig) to ~/.config/baggy.conf. The overwrite
+// parameter exists solely for automated unit tests.
+func NewRemoteConn(compact string, privKeyPath string, overwrite bool) (*RemoteConn, error) {
+	if !overwrite {
+		if _, statErr := os.Stat(ConfigPath); statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+			return nil, statErr
+		} else if statErr == nil {
+			reader := bufio.NewReader(os.Stdin)
+			for {
+				fmt.Printf("[?] existing config found, overwrite? [y/n]: ")
+				res, err := reader.ReadString('\n')
+				if err != nil && !errors.Is(err, io.EOF) {
+					return nil, fmt.Errorf("user input prompt failed")
+				}
+				res = strings.ToLower(strings.TrimSpace(res))
+				if res == "y" || res == "yes" {
+					break
+				} else if res == "n" || res == "no" {
+					return nil, fmt.Errorf("init aborted by user")
+				}
+			}
+		}
+	}
+
 	atIdx := strings.IndexByte(compact, '@')
 	if atIdx <= 0 {
 		return nil, fmt.Errorf("invalid compact string: missing '@'")

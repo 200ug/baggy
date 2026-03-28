@@ -85,22 +85,38 @@ func TestUserRemoteConfig_WriteToFile_RoundTrip(t *testing.T) {
 	}
 }
 
-// newremoteconn — compact string parsing (pre-i/o error paths only)
+// newremoteconn — compact string parsing and stat error (pre-i/o error paths only)
 
 func TestNewRemoteConn_MissingAt(t *testing.T) {
-	if _, err := NewRemoteConn("userhostname:22:/s", "/k"); err == nil {
+	withConfigPath(t, filepath.Join(t.TempDir(), "absent.conf"))
+	if _, err := NewRemoteConn("userhostname:22:/s", "/k", false); err == nil {
 		t.Fatal("expected error for missing '@'")
 	}
 }
 
 func TestNewRemoteConn_MissingPortAndRoot(t *testing.T) {
-	if _, err := NewRemoteConn("u@hostname", "/k"); err == nil {
+	withConfigPath(t, filepath.Join(t.TempDir(), "absent.conf"))
+	if _, err := NewRemoteConn("u@hostname", "/k", false); err == nil {
 		t.Fatal("expected error for missing port and storage_root")
 	}
 }
 
 func TestNewRemoteConn_InvalidPort(t *testing.T) {
-	if _, err := NewRemoteConn("u@hostname:notaport:/s", "/k"); err == nil {
+	withConfigPath(t, filepath.Join(t.TempDir(), "absent.conf"))
+	if _, err := NewRemoteConn("u@hostname:notaport:/s", "/k", false); err == nil {
 		t.Fatal("expected error for non-numeric port")
+	}
+}
+
+func TestNewRemoteConn_StatError(t *testing.T) {
+	restricted := filepath.Join(t.TempDir(), "noaccess")
+	if err := os.Mkdir(restricted, 0o000); err != nil {
+		t.Skip("cannot create restricted dir")
+	}
+	t.Cleanup(func() { os.Chmod(restricted, 0o755) })
+	withConfigPath(t, filepath.Join(restricted, "baggy.conf"))
+
+	if _, err := NewRemoteConn("u@h:22:/s", "/k", false); err == nil {
+		t.Fatal("expected error for unreadable config path")
 	}
 }
