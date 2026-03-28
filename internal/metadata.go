@@ -106,6 +106,15 @@ func hashFile(path string) (string, error) {
 	return fmt.Sprintf("%x", hashBytes), nil
 }
 
+func excluded(name string) bool {
+	for _, pattern := range Exclusions {
+		if ok, _ := filepath.Match(pattern, name); ok {
+			return true
+		}
+	}
+	return false
+}
+
 func walkDir(rootPath string) ([]Filedata, error) {
 	files := make([]Filedata, 0)
 
@@ -113,11 +122,13 @@ func walkDir(rootPath string) ([]Filedata, error) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() {
+		if excluded(d.Name()) {
+			if d.IsDir() {
+				return filepath.SkipDir // prevent WalkDir from going deeper into this dir
+			}
 			return nil
 		}
-		if d.Name() == Metafile {
-			// skip the metafile itself
+		if d.IsDir() {
 			return nil
 		}
 		

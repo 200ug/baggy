@@ -72,6 +72,38 @@ func TestMetadataFromLocal_Missing(t *testing.T) {
 	}
 }
 
+// excluded
+
+func TestExcluded_ExactMatch(t *testing.T) {
+	orig := Exclusions
+	Exclusions = []string{".git", "node_modules"}
+	t.Cleanup(func() { Exclusions = orig })
+
+	if !excluded(".git") {
+		t.Error("expected .git to be excluded")
+	}
+}
+
+func TestExcluded_GlobMatch(t *testing.T) {
+	orig := Exclusions
+	Exclusions = []string{"*.tmp"}
+	t.Cleanup(func() { Exclusions = orig })
+
+	if !excluded("foo.tmp") {
+		t.Error("expected foo.tmp to match *.tmp")
+	}
+}
+
+func TestExcluded_NoMatch(t *testing.T) {
+	orig := Exclusions
+	Exclusions = []string{".git", "*.tmp"}
+	t.Cleanup(func() { Exclusions = orig })
+
+	if excluded("notes.txt") {
+		t.Error("notes.txt should not be excluded")
+	}
+}
+
 // walkdir
 
 func TestWalkDir_ReturnsFiles(t *testing.T) {
@@ -117,6 +149,44 @@ func TestWalkDir_HashCorrect(t *testing.T) {
 	}
 	if files[0].ContentHash != knownHash("content") {
 		t.Errorf("wrong hash: %s", files[0].ContentHash)
+	}
+}
+
+func TestWalkDir_ExcludesMatchingFile(t *testing.T) {
+	orig := Exclusions
+	Exclusions = []string{"*.tmp"}
+	t.Cleanup(func() { Exclusions = orig })
+
+	dir := t.TempDir()
+	tmpFile(t, dir, "keep.txt", "data")
+	tmpFile(t, dir, "discard.tmp", "data")
+
+	files, err := walkDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || filepath.Base(files[0].LocalPath) != "keep.txt" {
+		t.Errorf("unexpected files: %+v", files)
+	}
+}
+
+func TestWalkDir_ExcludesMatchingDir_SkipsSubtree(t *testing.T) {
+	orig := Exclusions
+	Exclusions = []string{"node_modules"}
+	t.Cleanup(func() { Exclusions = orig })
+
+	dir := t.TempDir()
+	tmpFile(t, dir, "keep.txt", "data")
+	sub := filepath.Join(dir, "node_modules")
+	os.Mkdir(sub, 0o755)
+	tmpFile(t, sub, "inside.js", "data")
+
+	files, err := walkDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || filepath.Base(files[0].LocalPath) != "keep.txt" {
+		t.Errorf("unexpected files: %+v", files)
 	}
 }
 
