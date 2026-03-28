@@ -1,6 +1,8 @@
 # baggy
 
-Unnecessarily complex wrapper to perform e2ee file synchronization over a central SSH server.
+<img src="./docs/baggy.png" align="right" height="80">
+
+Unnecessarily complex wrapper to perform SFTP file synchronization. 
 
 ---
 
