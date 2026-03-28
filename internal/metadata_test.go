@@ -1,0 +1,204 @@
+package internal
+
+import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func knownHash(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return fmt.Sprintf("%x", h[:])
+}
+
+func tmpFile(t *testing.T, dir, name, body string) string {
+	t.Helper()
+	p := filepath.Join(dir, name)
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// hashfile
+
+func TestHashFile_KnownContent(t *testing.T) {
+	p := tmpFile(t, t.TempDir(), "f.txt", "hello")
+	got, err := hashFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != knownHash("hello") {
+		t.Errorf("got %s, want %s", got, knownHash("hello"))
+	}
+}
+
+func TestHashFile_Missing(t *testing.T) {
+	if _, err := hashFile("/no/such/file"); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// metadatafromlocal
+
+func TestMetadataFromLocal_Valid(t *testing.T) {
+	dir := t.TempDir()
+	m := Metadata{Version: Version, Files: []Filedata{{LocalPath: "/a", ContentHash: "abc", ModifiedAt: 1}}}
+	raw, _ := json.Marshal(m)
+	p := tmpFile(t, dir, Metafile, string(raw))
+
+	got, err := metadataFromLocal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Version != Version || len(got.Files) != 1 || got.Files[0].LocalPath != "/a" {
+		t.Errorf("unexpected result: %+v", got)
+	}
+}
+
+func TestMetadataFromLocal_InvalidJSON(t *testing.T) {
+	p := tmpFile(t, t.TempDir(), Metafile, "{bad json")
+	if _, err := metadataFromLocal(p); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestMetadataFromLocal_Missing(t *testing.T) {
+	if _, err := metadataFromLocal("/no/such/file"); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// walkdir
+
+func TestWalkDir_ReturnsFiles(t *testing.T) {
+	dir := t.TempDir()
+	tmpFile(t, dir, "a.txt", "aaa")
+	tmpFile(t, dir, "b.txt", "bbb")
+
+	files, err := walkDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 2 {
+		t.Errorf("got %d files, want 2", len(files))
+	}
+}
+
+func TestWalkDir_ExcludesMetafile(t *testing.T) {
+	dir := t.TempDir()
+	tmpFile(t, dir, "real.txt", "data")
+	tmpFile(t, dir, Metafile, `{"version":1,"files":[]}`)
+
+	files, err := walkDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if filepath.Base(f.LocalPath) == Metafile {
+			t.Error("metafile must not appear in walk results")
+		}
+	}
+	if len(files) != 1 {
+		t.Errorf("got %d files, want 1", len(files))
+	}
+}
+
+func TestWalkDir_HashCorrect(t *testing.T) {
+	dir := t.TempDir()
+	tmpFile(t, dir, "c.txt", "content")
+
+	files, err := walkDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if files[0].ContentHash != knownHash("content") {
+		t.Errorf("wrong hash: %s", files[0].ContentHash)
+	}
+}
+
+func TestWalkDir_Empty(t *testing.T) {
+	files, err := walkDir(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 0 {
+		t.Errorf("got %d files, want 0", len(files))
+	}
+}
+
+// newmetadata
+
+func TestNewMetadata_NoMetafile_Walks(t *testing.T) {
+	dir := t.TempDir()
+	tmpFile(t, dir, "x.txt", "x")
+
+	m, err := NewMetadata(dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Version != Version || len(m.Files) != 1 {
+		t.Errorf("unexpected metadata: %+v", m)
+	}
+}
+
+func TestNewMetadata_ExistingMetafile_Reads(t *testing.T) {
+	dir := t.TempDir()
+	stored := Metadata{Version: Version, Files: []Filedata{{LocalPath: "/stored", ContentHash: "cf", ModifiedAt: 99}}}
+	raw, _ := json.Marshal(stored)
+	tmpFile(t, dir, Metafile, string(raw))
+
+	m, err := NewMetadata(dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Files) != 1 || m.Files[0].LocalPath != "/stored" {
+		t.Errorf("unexpected files: %+v", m.Files)
+	}
+}
+
+func TestNewMetadata_CorruptMetafile_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	tmpFile(t, dir, Metafile, "not json")
+
+	if _, err := NewMetadata(dir, nil); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestNewMetadata_StatError_PropagatesError(t *testing.T) {
+	dir := t.TempDir()
+	// make the directory unreadable so stat on the metafile path fails with a non ErrNotExist error
+	restricted := filepath.Join(dir, "r")
+	if err := os.Mkdir(restricted, 0o000); err != nil {
+		t.Skip("cannot create restricted dir")
+	}
+	t.Cleanup(func() { os.Chmod(restricted, 0o755) })
+
+	if _, err := NewMetadata(restricted, nil); err == nil {
+		t.Fatal("expected error for unreadable directory")
+	}
+}
+
+// writetofile
+
+func TestWriteToFile_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	m := &Metadata{Version: Version, Files: []Filedata{{LocalPath: "/z", ContentHash: "zz", ModifiedAt: 42}}}
+	p := filepath.Join(dir, Metafile)
+
+	if err := m.WriteToFile(p); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := metadataFromLocal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Version != m.Version || len(got.Files) != 1 || got.Files[0].LocalPath != "/z" {
+		t.Errorf("round-trip mismatch: %+v", got)
+	}
+}
