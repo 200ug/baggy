@@ -3,7 +3,6 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,7 +28,8 @@ func init() {
 	// resolve home path only once during module init
 	userHome, err := os.UserHomeDir()
 	if err != nil {
-		log.Fatalf("user home could not be resolved: %s", err)
+		fmt.Printf("[!] user home could not be resolved: %s\n", err)
+		os.Exit(1)
 	}
 	fullConfigPath := filepath.Join(userHome, ConfigPath)
 	ConfigPath = fullConfigPath
