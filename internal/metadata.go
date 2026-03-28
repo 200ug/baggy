@@ -13,7 +13,7 @@ import (
 
 const (
 	Version  int 	= 1
-	Metafile string = ".meta.bggy"
+	Metafile string = ".meta." + FileExt
 )
 
 type Filedata struct {
@@ -40,13 +40,13 @@ func (m *Metadata) WriteToFile(path string) (error) {
 }
 
 // Creates a new Metadata object by either reading from an existing metafile or 
-// by walking the file tree to generate that data in the first place. If *remoteConfig
+// by walking the file tree to generate that data in the first place. If *remoteConn
 // is not null, the metadata will be fetched from the remote server.
-func NewMetadata(rootPath string, remoteConfig *RemoteConfig) (*Metadata, error) {
+func NewMetadata(rootPath string, remoteConn *RemoteConn) (*Metadata, error) {
 	var meta *Metadata
 
-	if remoteConfig != nil {
-		// TODO: implement remote fetching here (simple call to transport.go via remoteConfig)
+	if remoteConn != nil {
+		// TODO: implement remote fetching here (simple call to transport.go via remoteConn)
 		fmt.Println("[!] remote fetching not implemented yet")
 	}
 
