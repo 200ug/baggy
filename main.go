@@ -74,6 +74,8 @@ func cmdSync(args []string) {
 		fmt.Println("[!] remote config unavailable (run init to configure)")
 		os.Exit(1)
 	}
+	defer remoteConn.SFTP.Close()
+	defer remoteConn.Conn.Close()
 
 	// 1) load local meta or initialize from directory walk
 	meta, err := internal.NewMetadata(*root, remoteConn)
@@ -81,7 +83,7 @@ func cmdSync(args []string) {
 		fmt.Printf("[!] failed to load metadata: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("[+] loaded metadata: version=%d files=%d\n", meta.Version, len(meta.Files))
+	fmt.Printf("[+] local metadata: files=%d\n", len(meta.Files))
 
 	// 2-5) not yet implemented (sftp ops, diff, crypto)
 
