@@ -60,7 +60,7 @@ func cmdInit(args []string) {
 		fmt.Printf("[!] init failed: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("[+] remote configured and verified\n")
+	fmt.Println("[+] remote configured and verified")
 }
 
 func cmdSync(args []string) {
@@ -71,7 +71,7 @@ func cmdSync(args []string) {
 	// load remote conn from ~/.config/baggy.conf; must be manually init'd if absent
 	remoteConn, err := internal.LoadRemoteConn()
 	if err != nil {
-		fmt.Printf("[!] remote config unavailable (run init to configure)\n")
+		fmt.Println("[!] remote config unavailable (run init to configure)")
 		os.Exit(1)
 	}
 
