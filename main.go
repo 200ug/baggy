@@ -68,6 +68,12 @@ func cmdSync(args []string) {
 	root := fs.String("root", ".", "root directory to sync")
 	fs.Parse(args)
 
+	absRoot, err := filepath.Abs(*root)
+	if err != nil {
+		fmt.Printf("[!] failed to parse absolute root path: %v\n", err)
+		os.Exit(1)
+	}
+
 	// load remote conn from ~/.config/baggy.conf; must be manually init'd if absent
 	remoteConn, err := internal.LoadRemoteConn()
 	if err != nil {
@@ -78,7 +84,7 @@ func cmdSync(args []string) {
 	defer remoteConn.Conn.Close()
 
 	// 1) load local meta or initialize from directory walk
-	localMeta, err := internal.NewMetadata(*root)
+	localMeta, err := internal.NewMetadata(absRoot)
 	if err != nil {
 		fmt.Printf("[!] failed to load metadata: %v\n", err)
 		os.Exit(1)
@@ -86,7 +92,7 @@ func cmdSync(args []string) {
 	fmt.Printf("[+] local metadata: files=%d\n", len(localMeta.Files))
 
 	// 2) fetch remote metafile (nil == first sync, remote has no state yet)
-	remoteMeta, err := remoteConn.PullRemoteMetafile(*root)
+	remoteMeta, err := remoteConn.PullRemoteMetafile(absRoot)
 	if err != nil {
 		fmt.Printf("[!] failed to fetch remote metadata: %v\n", err)
 		os.Exit(1)
@@ -98,7 +104,7 @@ func cmdSync(args []string) {
 	}
 
 	// 3) compute diff
-	diff := internal.Diff(localMeta, remoteMeta, *root)
+	diff := internal.Diff(localMeta, remoteMeta, absRoot)
 	fmt.Printf("[+] diff: upload=%d download=%d\n", len(diff.ToUpload), len(diff.ToDownload))
 
 	// 4-5) not yet implemented (crypto, sftp put/get)

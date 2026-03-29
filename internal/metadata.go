@@ -184,8 +184,12 @@ func walkDir(rootPath string) ([]Filedata, error) {
 		if err != nil {
 			return err
 		}
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			return err
+		}
 		files = append(files, Filedata{
-			LocalPath: path,
+			LocalPath: absPath,
 			ContentHash: hash,
 			ModifiedAt: info.ModTime().Unix(),
 		})
