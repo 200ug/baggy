@@ -78,18 +78,34 @@ func cmdSync(args []string) {
 	defer remoteConn.Conn.Close()
 
 	// 1) load local meta or initialize from directory walk
-	meta, err := internal.NewMetadata(*root, remoteConn)
+	localMeta, err := internal.NewMetadata(*root)
 	if err != nil {
 		fmt.Printf("[!] failed to load metadata: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("[+] local metadata: files=%d\n", len(meta.Files))
+	fmt.Printf("[+] local metadata: files=%d\n", len(localMeta.Files))
 
-	// 2-5) not yet implemented (sftp ops, diff, crypto)
+	// 2) fetch remote metafile (nil == first sync, remote has no state yet)
+	remoteMeta, err := remoteConn.PullRemoteMetafile(*root)
+	if err != nil {
+		fmt.Printf("[!] failed to fetch remote metadata: %v\n", err)
+		os.Exit(1)
+	}
+	if remoteMeta != nil {
+		fmt.Printf("[+] remote metadata: files=%d\n", len(remoteMeta.Files))
+	} else {
+		fmt.Println("[+] no remote metadata found (first sync)")
+	}
 
-	// 6 [local half]) write updated meta back to disk
+	// 3) compute diff
+	diff := internal.Diff(localMeta, remoteMeta, *root)
+	fmt.Printf("[+] diff: upload=%d download=%d\n", len(diff.ToUpload), len(diff.ToDownload))
+
+	// 4-5) not yet implemented (crypto, sftp put/get)
+
+	// 6 [local half]) write updated (local) meta back to disk
 	metaPath := filepath.Join(*root, internal.Metafile)
-	if err = meta.WriteToFile(metaPath); err != nil {
+	if err = localMeta.WriteToFile(metaPath); err != nil {
 		fmt.Printf("[!] failed to write metadata: %v\n", err)
 		os.Exit(1)
 	}

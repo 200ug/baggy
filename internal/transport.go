@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -74,8 +75,9 @@ func (urc *UserRemoteConfig) WriteToFile() error {
 }
 
 type RemoteConn struct {
-	Conn *ssh.Client
-	SFTP *sftp.Client
+	Conn   *ssh.Client
+	SFTP   *sftp.Client
+	Config *UserRemoteConfig
 }
 
 // Initializes a completely fresh remote connection config, verifies the SSH + SFTP connection
@@ -172,6 +174,30 @@ func LoadRemoteConn() (*RemoteConn, error) {
 		return nil, err
 	}
 
-	return &RemoteConn{Conn: sshClient, SFTP: sftpClient}, nil
+	return &RemoteConn{Conn: sshClient, SFTP: sftpClient, Config: config}, nil
+}
+
+func (rc *RemoteConn) PullRemoteMetafile(localRoot string) (*Metadata, error) {
+	remotePath := path.Join(rc.Config.StorageRoot, filepath.Base(localRoot), Metafile)
+
+	if _, err := rc.SFTP.Lstat(remotePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // no remote metafile yet (first sync)
+		}
+		return nil, err
+	}
+
+	f, err := rc.SFTP.Open(remotePath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var meta Metadata
+	if err = json.NewDecoder(f).Decode(&meta); err != nil {
+		return nil, err
+	}
+
+	return &meta, nil
 }
 

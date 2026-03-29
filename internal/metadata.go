@@ -40,15 +40,9 @@ func (m *Metadata) WriteToFile(path string) (error) {
 }
 
 // Creates a new Metadata object by either reading from an existing metafile or 
-// by walking the file tree to generate that data in the first place. If *remoteConn
-// is not null, the metadata will be fetched from the remote server.
-func NewMetadata(rootPath string, remoteConn *RemoteConn) (*Metadata, error) {
+// by walking the file tree to generate that data in the first place.
+func NewMetadata(rootPath string) (*Metadata, error) {
 	var meta *Metadata
-
-	if remoteConn != nil {
-		// TODO: implement remote fetching here (simple call to transport.go via remoteConn)
-		fmt.Println("[!] remote fetching not implemented yet")
-	}
 
 	localMetaPath := filepath.Join(rootPath, Metafile)
 	if _, err := os.Stat(localMetaPath); err != nil {
@@ -104,6 +98,56 @@ func hashFile(path string) (string, error) {
 	hashBytes := hash.Sum(nil)
 
 	return fmt.Sprintf("%x", hashBytes), nil
+}
+
+type DiffResult struct {
+	ToUpload   []Filedata
+	ToDownload []Filedata
+}
+
+// Computes which files need to be uploaded or downloaded by walking the merged key set 
+// of local and remote. Relative paths (from rootPath) are used as the comparison key so 
+// absolute paths on different machines don't matter. If remote is nil (first sync) all 
+// local files are queued for upload.
+func Diff(local, remote *Metadata, rootPath string) DiffResult {
+	if remote == nil {
+		return DiffResult{ToUpload: local.Files}
+	}
+
+	index := func(files []Filedata) map[string]Filedata {
+		m := make(map[string]Filedata, len(files))
+		for _, f := range files {
+			rel, _ := filepath.Rel(rootPath, f.LocalPath)
+			m[rel] = f
+		}
+		return m
+	}
+
+	localMap  := index(local.Files)
+	remoteMap := index(remote.Files)
+
+	var result DiffResult
+
+	for rel, lf := range localMap {
+		rf, exists := remoteMap[rel]
+		if !exists {
+			result.ToUpload = append(result.ToUpload, lf)
+		} else if lf.ContentHash != rf.ContentHash {
+			if lf.ModifiedAt >= rf.ModifiedAt {
+				result.ToUpload = append(result.ToUpload, lf)
+			} else {
+				result.ToDownload = append(result.ToDownload, rf)
+			}
+		}
+	}
+
+	for rel, rf := range remoteMap {
+		if _, exists := localMap[rel]; !exists {
+			result.ToDownload = append(result.ToDownload, rf)
+		}
+	}
+
+	return result
 }
 
 func excluded(name string) bool {

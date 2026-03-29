@@ -206,7 +206,7 @@ func TestNewMetadata_NoMetafile_Walks(t *testing.T) {
 	dir := t.TempDir()
 	tmpFile(t, dir, "x.txt", "x")
 
-	m, err := NewMetadata(dir, nil)
+	m, err := NewMetadata(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestNewMetadata_ExistingMetafile_Reads(t *testing.T) {
 	raw, _ := json.Marshal(stored)
 	tmpFile(t, dir, Metafile, string(raw))
 
-	m, err := NewMetadata(dir, nil)
+	m, err := NewMetadata(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestNewMetadata_CorruptMetafile_ReturnsError(t *testing.T) {
 	dir := t.TempDir()
 	tmpFile(t, dir, Metafile, "not json")
 
-	if _, err := NewMetadata(dir, nil); err == nil {
+	if _, err := NewMetadata(dir); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -248,8 +248,88 @@ func TestNewMetadata_StatError_PropagatesError(t *testing.T) {
 	}
 	t.Cleanup(func() { os.Chmod(restricted, 0o755) })
 
-	if _, err := NewMetadata(restricted, nil); err == nil {
+	if _, err := NewMetadata(restricted); err == nil {
 		t.Fatal("expected error for unreadable directory")
+	}
+}
+
+// diff
+
+func fd(root, name, hash string, mtime int64) Filedata {
+	return Filedata{LocalPath: filepath.Join(root, name), ContentHash: hash, ModifiedAt: mtime}
+}
+
+func TestDiff_NilRemote_AllUploaded(t *testing.T) {
+	root := t.TempDir()
+	local := &Metadata{Files: []Filedata{fd(root, "a.txt", "h1", 1), fd(root, "b.txt", "h2", 2)}}
+
+	d := Diff(local, nil, root)
+	if len(d.ToUpload) != 2 || len(d.ToDownload) != 0 {
+		t.Errorf("got upload=%d download=%d, want 2/0", len(d.ToUpload), len(d.ToDownload))
+	}
+}
+
+func TestDiff_LocalOnly_Uploads(t *testing.T) {
+	root := t.TempDir()
+	local  := &Metadata{Files: []Filedata{fd(root, "a.txt", "h1", 1)}}
+	remote := &Metadata{Files: []Filedata{}}
+
+	d := Diff(local, remote, root)
+	if len(d.ToUpload) != 1 || len(d.ToDownload) != 0 {
+		t.Errorf("got upload=%d download=%d, want 1/0", len(d.ToUpload), len(d.ToDownload))
+	}
+}
+
+func TestDiff_RemoteOnly_Downloads(t *testing.T) {
+	root := t.TempDir()
+	local  := &Metadata{Files: []Filedata{}}
+	remote := &Metadata{Files: []Filedata{fd(root, "a.txt", "h1", 1)}}
+
+	d := Diff(local, remote, root)
+	if len(d.ToUpload) != 0 || len(d.ToDownload) != 1 {
+		t.Errorf("got upload=%d download=%d, want 0/1", len(d.ToUpload), len(d.ToDownload))
+	}
+}
+
+func TestDiff_InSync_NoAction(t *testing.T) {
+	root := t.TempDir()
+	f := fd(root, "a.txt", "samehash", 1)
+	local  := &Metadata{Files: []Filedata{f}}
+	remote := &Metadata{Files: []Filedata{f}}
+
+	d := Diff(local, remote, root)
+	if len(d.ToUpload) != 0 || len(d.ToDownload) != 0 {
+		t.Errorf("got upload=%d download=%d, want 0/0", len(d.ToUpload), len(d.ToDownload))
+	}
+}
+
+func TestDiff_LocalNewer_Uploads(t *testing.T) {
+	root := t.TempDir()
+	local  := &Metadata{Files: []Filedata{fd(root, "a.txt", "new", 10)}}
+	remote := &Metadata{Files: []Filedata{fd(root, "a.txt", "old", 5)}}
+
+	d := Diff(local, remote, root)
+	if len(d.ToUpload) != 1 || len(d.ToDownload) != 0 {
+		t.Errorf("got upload=%d download=%d, want 1/0", len(d.ToUpload), len(d.ToDownload))
+	}
+}
+
+func TestDiff_RemoteNewer_Downloads(t *testing.T) {
+	root := t.TempDir()
+	local  := &Metadata{Files: []Filedata{fd(root, "a.txt", "old", 5)}}
+	remote := &Metadata{Files: []Filedata{fd(root, "a.txt", "new", 10)}}
+
+	d := Diff(local, remote, root)
+	if len(d.ToUpload) != 0 || len(d.ToDownload) != 1 {
+		t.Errorf("got upload=%d download=%d, want 0/1", len(d.ToUpload), len(d.ToDownload))
+	}
+}
+
+func TestDiff_BothEmpty(t *testing.T) {
+	root := t.TempDir()
+	d := Diff(&Metadata{}, &Metadata{}, root)
+	if len(d.ToUpload) != 0 || len(d.ToDownload) != 0 {
+		t.Errorf("got upload=%d download=%d, want 0/0", len(d.ToUpload), len(d.ToDownload))
 	}
 }
 
