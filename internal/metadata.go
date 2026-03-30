@@ -3,7 +3,6 @@ package internal
 import (
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -44,44 +43,16 @@ func (m *Metadata) WriteToFile(path string) (error) {
 func NewMetadata(rootPath string) (*Metadata, error) {
 	var meta *Metadata
 
-	localMetaPath := filepath.Join(rootPath, Metafile)
-	if _, err := os.Stat(localMetaPath); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			files, err := walkDir(rootPath)
-			if err != nil {
-				return nil, err
-			}
-			meta = &Metadata{
-				Version: Version,
-				Files: files,
-			}
-		} else {
-			return nil, err
-		}
-	} else {
-		meta, err = metadataFromLocal(localMetaPath)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return meta, nil
-}
-
-func metadataFromLocal(path string) (*Metadata, error) {
-	file, err := os.Open(path)
+	files, err := walkDir(rootPath)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
-
-	var meta Metadata
-	parser := json.NewDecoder(file)
-	if err = parser.Decode(&meta); err != nil {
-		return nil, err
+	meta = &Metadata{
+		Version: Version,
+		Files: files,
 	}
 
-	return &meta, nil
+	return meta, nil
 }
 
 func HashFile(path string) (string, error) {

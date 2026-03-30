@@ -42,36 +42,6 @@ func TestHashFile_Missing(t *testing.T) {
 	}
 }
 
-// metadatafromlocal
-
-func TestMetadataFromLocal_Valid(t *testing.T) {
-	dir := t.TempDir()
-	m := Metadata{Version: Version, Files: []Filedata{{LocalPath: "/a", ContentHash: "abc", ModifiedAt: 1}}}
-	raw, _ := json.Marshal(m)
-	p := tmpFile(t, dir, Metafile, string(raw))
-
-	got, err := metadataFromLocal(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Version != Version || len(got.Files) != 1 || got.Files[0].LocalPath != "/a" {
-		t.Errorf("unexpected result: %+v", got)
-	}
-}
-
-func TestMetadataFromLocal_InvalidJSON(t *testing.T) {
-	p := tmpFile(t, t.TempDir(), Metafile, "{bad json")
-	if _, err := metadataFromLocal(p); err == nil {
-		t.Fatal("expected error")
-	}
-}
-
-func TestMetadataFromLocal_Missing(t *testing.T) {
-	if _, err := metadataFromLocal("/no/such/file"); err == nil {
-		t.Fatal("expected error")
-	}
-}
-
 // excluded
 
 func TestExcluded_ExactMatch(t *testing.T) {
@@ -215,30 +185,6 @@ func TestNewMetadata_NoMetafile_Walks(t *testing.T) {
 	}
 }
 
-func TestNewMetadata_ExistingMetafile_Reads(t *testing.T) {
-	dir := t.TempDir()
-	stored := Metadata{Version: Version, Files: []Filedata{{LocalPath: "/stored", ContentHash: "cf", ModifiedAt: 99}}}
-	raw, _ := json.Marshal(stored)
-	tmpFile(t, dir, Metafile, string(raw))
-
-	m, err := NewMetadata(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(m.Files) != 1 || m.Files[0].LocalPath != "/stored" {
-		t.Errorf("unexpected files: %+v", m.Files)
-	}
-}
-
-func TestNewMetadata_CorruptMetafile_ReturnsError(t *testing.T) {
-	dir := t.TempDir()
-	tmpFile(t, dir, Metafile, "not json")
-
-	if _, err := NewMetadata(dir); err == nil {
-		t.Fatal("expected error")
-	}
-}
-
 func TestNewMetadata_StatError_PropagatesError(t *testing.T) {
 	dir := t.TempDir()
 	// make the directory unreadable so stat on the metafile path fails with a non ErrNotExist error
@@ -337,8 +283,12 @@ func TestWriteToFile_RoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := metadataFromLocal(p)
+	raw, err := os.ReadFile(p)
 	if err != nil {
+		t.Fatal(err)
+	}
+	var got Metadata
+	if err = json.Unmarshal(raw, &got); err != nil {
 		t.Fatal(err)
 	}
 	if got.Version != m.Version || len(got.Files) != 1 || got.Files[0].LocalPath != "/z" {
