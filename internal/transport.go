@@ -2,6 +2,7 @@ package internal
 
 import (
 	"bufio"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,11 +41,12 @@ func init() {
 }
 
 type UserRemoteConfig struct {
-	User 	 	string `json:"user"`
-	Hostname 	string `json:"hostname"`
+	User        string `json:"user"`
+	Hostname    string `json:"hostname"`
 	PrivKeyPath string `json:"privkey_path"`
-	Port 	 	int	   `json:"port"`
-	StorageRoot string `json:"storage_root"` // root dir. for file sync
+	Port        int    `json:"port"`
+	StorageRoot string `json:"storage_root"` // remote's root path
+	Salt        []byte `json:"salt"` 		 // shared across devices via remote
 }
 
 func UserRemoteConfigFromFile() (*UserRemoteConfig, error) {
@@ -139,6 +141,43 @@ func NewRemoteConn(compact string, privKeyPath string, overwrite bool) (*RemoteC
 		return nil, err
 	}
 
+	cleanup := func() {
+		remoteConn.SFTP.Close()
+		remoteConn.Conn.Close()
+		_ = os.Remove(ConfigPath)
+	}
+
+	// ensure storage root exists on remote
+	if err = remoteConn.SFTP.MkdirAll(storageRoot); err != nil {
+		cleanup()
+		return nil, err
+	}
+
+	// pull existing salt or generate and push a new one
+	salt, err := remoteConn.pullSalt()
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
+	if salt == nil {
+		salt = make([]byte, 16)
+		if _, err = rand.Read(salt); err != nil {
+			cleanup()
+			return nil, err
+		}
+		if err = remoteConn.pushSalt(salt); err != nil {
+			cleanup()
+			return nil, err
+		}
+	}
+
+	urc.Salt = salt
+	if err = urc.WriteToFile(); err != nil {
+		cleanup()
+		return nil, err
+	}
+	remoteConn.Config.Salt = salt
+
 	return remoteConn, nil
 }
 
@@ -175,6 +214,34 @@ func LoadRemoteConn() (*RemoteConn, error) {
 	}
 
 	return &RemoteConn{Conn: sshClient, SFTP: sftpClient, Config: config}, nil
+}
+
+func (rc *RemoteConn) pushSalt(salt []byte) error {
+	f, err := rc.SFTP.Create(path.Join(rc.Config.StorageRoot, "salt"))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.Write(salt)
+
+	return err
+}
+
+func (rc *RemoteConn) pullSalt() ([]byte, error) {
+	p := path.Join(rc.Config.StorageRoot, "salt")
+	if _, err := rc.SFTP.Lstat(p); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	f, err := rc.SFTP.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	return io.ReadAll(f)
 }
 
 func (rc *RemoteConn) PullRemoteMetafile(localRoot string) (*Metadata, error) {

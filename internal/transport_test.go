@@ -80,7 +80,8 @@ func TestUserRemoteConfig_WriteToFile_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if *got != *want {
+	if got.User != want.User || got.Hostname != want.Hostname || got.Port != want.Port ||
+		got.StorageRoot != want.StorageRoot || got.PrivKeyPath != want.PrivKeyPath {
 		t.Errorf("round-trip mismatch:\n got:  %+v\n want: %+v", got, want)
 	}
 }
