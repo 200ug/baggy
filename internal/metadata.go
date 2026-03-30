@@ -106,10 +106,9 @@ type DiffResult struct {
 }
 
 // Computes which files need to be uploaded or downloaded by walking the merged key set 
-// of local and remote. Relative paths (from rootPath) are used as the comparison key so 
-// absolute paths on different machines don't matter. If remote is nil (first sync) all 
-// local files are queued for upload.
-func Diff(local, remote *Metadata, rootPath string) DiffResult {
+// of local and remote. LocalPath is relative to the sync root so keys match
+// across machines. if remote is nil (first sync) all local files are queued for upload.
+func Diff(local, remote *Metadata) DiffResult {
 	if remote == nil {
 		return DiffResult{ToUpload: local.Files}
 	}
@@ -117,8 +116,7 @@ func Diff(local, remote *Metadata, rootPath string) DiffResult {
 	index := func(files []Filedata) map[string]Filedata {
 		m := make(map[string]Filedata, len(files))
 		for _, f := range files {
-			rel, _ := filepath.Rel(rootPath, f.LocalPath)
-			m[rel] = f
+			m[f.LocalPath] = f
 		}
 		return m
 	}
@@ -184,14 +182,14 @@ func walkDir(rootPath string) ([]Filedata, error) {
 		if err != nil {
 			return err
 		}
-		absPath, err := filepath.Abs(path)
+		rel, err := filepath.Rel(rootPath, path)
 		if err != nil {
 			return err
 		}
 		files = append(files, Filedata{
-			LocalPath: absPath,
+			LocalPath:   rel,
 			ContentHash: hash,
-			ModifiedAt: info.ModTime().Unix(),
+			ModifiedAt:  info.ModTime().Unix(),
 		})
 
 		return nil

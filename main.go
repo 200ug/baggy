@@ -10,16 +10,6 @@ import (
 	"codeberg.org/2ug/baggy/internal"
 )
 
-/*
-	1. load local meta file (or initialize it)
-	2. fetch server meta file via sftp
-	3. compute diff (merged key walk)
-	4. for each file to upload: read plaintext -> hash -> encrypt to a temp file -> sftp put -> update local meta entry
-	5. for each file to download: sftp get -> decrypt -> write locally -> update local meta entry
-	6. write updated meta file locally *and* push it to the server (to make sure they're equal)
-	7. the meta file write should be atomic on both ends (i.e. write to a temp file, then rename), prevents half-written file if the proc crashes
-*/
-
 const usage = `usage: baggy <command> [flags]
 
 commands:
@@ -84,7 +74,7 @@ func cmdSync(args []string) {
 	defer remoteConn.SFTP.Close()
 	defer remoteConn.Conn.Close()
 
-	// 1) load local meta or initialize from directory walk
+	// 1) load local meta or initialize from file walk
 	localMeta, err := internal.NewMetadata(absRoot)
 	if err != nil {
 		fmt.Printf("[!] failed to load metadata: %v\n", err)
@@ -105,20 +95,19 @@ func cmdSync(args []string) {
 	}
 
 	// 3) compute diff
-	diff := internal.Diff(localMeta, remoteMeta, absRoot)
+	diff := internal.Diff(localMeta, remoteMeta)
 	fmt.Printf("[+] diff: upload=%d download=%d\n", len(diff.ToUpload), len(diff.ToDownload))
 
 	// 4-5) derive key once, then [encrypt + push] or [pull + decrypt] per file
 	if len(diff.ToUpload)+len(diff.ToDownload) > 0 {
 		kh, err := internal.NewKeyHolder(remoteConn.Config.Salt)
-		fmt.Println() // newline after password prompt
 		if err != nil {
 			fmt.Printf("[!] failed to read password: %v\n", err)
 			os.Exit(1)
 		}
 
 		for _, f := range diff.ToUpload {
-			rel, _ := filepath.Rel(absRoot, f.LocalPath)
+			rel := f.LocalPath
 			remotePath := path.Join(remoteConn.Config.StorageRoot, filepath.Base(absRoot), rel+"."+internal.FileExt)
 
 			tmp, err := os.CreateTemp("", "baggy-enc-*")
@@ -128,7 +117,7 @@ func cmdSync(args []string) {
 			}
 			tmp.Close()
 
-			if err = kh.EncryptFile(f.LocalPath, tmp.Name()); err != nil {
+			if err = kh.EncryptFile(filepath.Join(absRoot, f.LocalPath), tmp.Name()); err != nil {
 				os.Remove(tmp.Name())
 				fmt.Printf("[!] upload %s: encrypt: %v\n", rel, err)
 				os.Exit(1)
@@ -139,11 +128,11 @@ func cmdSync(args []string) {
 				os.Exit(1)
 			}
 			os.Remove(tmp.Name())
-			fmt.Printf("[+] uploaded %s\n", rel)
+			fmt.Printf("[>] %s\n", rel)
 		}
 
 		for _, f := range diff.ToDownload {
-			rel, _ := filepath.Rel(absRoot, f.LocalPath)
+			rel := f.LocalPath
 			remotePath := path.Join(remoteConn.Config.StorageRoot, filepath.Base(absRoot), rel+"."+internal.FileExt)
 			dst := filepath.Join(absRoot, rel)
 
@@ -182,10 +171,10 @@ func cmdSync(args []string) {
 				fmt.Printf("[!] download %s: hash: %v\n", rel, err)
 				os.Exit(1)
 			}
-			entry := internal.Filedata{LocalPath: dst, ContentHash: hash, ModifiedAt: info.ModTime().Unix()}
+			entry := internal.Filedata{LocalPath: rel, ContentHash: hash, ModifiedAt: info.ModTime().Unix()}
 			updated := false
 			for i, lf := range localMeta.Files {
-				if lf.LocalPath == dst {
+				if lf.LocalPath == rel {
 					localMeta.Files[i] = entry
 					updated = true
 					break
@@ -194,7 +183,7 @@ func cmdSync(args []string) {
 			if !updated {
 				localMeta.Files = append(localMeta.Files, entry)
 			}
-			fmt.Printf("[+] downloaded %s\n", rel)
+			fmt.Printf("[<] %s\n", rel)
 		}
 	}
 

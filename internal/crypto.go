@@ -27,6 +27,7 @@ type KeyHolder struct {
 func NewKeyHolder(salt []byte) (*KeyHolder, error) {
 	fmt.Printf("[?] encryption password: ")
 	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+	fmt.Println()
 	if err != nil {
 		return nil, err
 	}
