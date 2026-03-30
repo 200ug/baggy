@@ -216,6 +216,56 @@ func LoadRemoteConn() (*RemoteConn, error) {
 	return &RemoteConn{Conn: sshClient, SFTP: sftpClient, Config: config}, nil
 }
 
+func (rc *RemoteConn) PushFile(localPath, remotePath string) error {
+	if err := rc.SFTP.MkdirAll(path.Dir(remotePath)); err != nil {
+		return err
+	}
+	src, err := os.Open(localPath)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	dst, err := rc.SFTP.Create(remotePath)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, src)
+	return err
+}
+
+func (rc *RemoteConn) PullFile(remotePath, localPath string) error {
+	src, err := rc.SFTP.Open(remotePath)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	dst, err := os.Create(localPath)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, src)
+	return err
+}
+
+func (rc *RemoteConn) PushRemoteMetafile(localRoot string, meta *Metadata) error {
+	remotePath := path.Join(rc.Config.StorageRoot, filepath.Base(localRoot), Metafile)
+	if err := rc.SFTP.MkdirAll(path.Dir(remotePath)); err != nil {
+		return err
+	}
+	f, err := rc.SFTP.Create(remotePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return json.NewEncoder(f).Encode(meta)
+}
+
 func (rc *RemoteConn) pushSalt(salt []byte) error {
 	f, err := rc.SFTP.Create(path.Join(rc.Config.StorageRoot, "salt"))
 	if err != nil {

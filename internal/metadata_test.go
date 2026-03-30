@@ -27,7 +27,7 @@ func tmpFile(t *testing.T, dir, name, body string) string {
 
 func TestHashFile_KnownContent(t *testing.T) {
 	p := tmpFile(t, t.TempDir(), "f.txt", "hello")
-	got, err := hashFile(p)
+	got, err := HashFile(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestHashFile_KnownContent(t *testing.T) {
 }
 
 func TestHashFile_Missing(t *testing.T) {
-	if _, err := hashFile("/no/such/file"); err == nil {
+	if _, err := HashFile("/no/such/file"); err == nil {
 		t.Fatal("expected error")
 	}
 }

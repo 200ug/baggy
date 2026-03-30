@@ -84,7 +84,7 @@ func metadataFromLocal(path string) (*Metadata, error) {
 	return &meta, nil
 }
 
-func hashFile(path string) (string, error) {
+func HashFile(path string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return "", err
@@ -180,7 +180,7 @@ func walkDir(rootPath string) ([]Filedata, error) {
 		if err != nil {
 			return err
 		}
-		hash, err := hashFile(path)
+		hash, err := HashFile(path)
 		if err != nil {
 			return err
 		}
