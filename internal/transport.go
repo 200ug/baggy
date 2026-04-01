@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/pkg/sftp"
+	"github.com/skeema/knownhosts"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -33,12 +34,13 @@ func init() {
 }
 
 type UserRemoteConfig struct {
-	User        string `json:"user"`
-	Hostname    string `json:"hostname"`
-	PrivKeyPath string `json:"privkey_path"`
-	Port        int    `json:"port"`
-	StorageRoot string `json:"storage_root"` // remote's root path
-	Salt        []byte `json:"salt"` 		 // shared across devices via remote
+	User           string `json:"user"`
+	Hostname       string `json:"hostname"`
+	PrivKeyPath    string `json:"privkey_path"`
+	KnownHostsPath string `json:"knownhosts_path"`
+	Port           int    `json:"port"`
+	StorageRoot    string `json:"storage_root"` // remote's root path
+	Salt           []byte `json:"salt"` 		// shared across devices via remote
 }
 
 func UserRemoteConfigFromFile() (*UserRemoteConfig, error) {
@@ -77,7 +79,7 @@ type RemoteConn struct {
 // Initializes a completely fresh remote connection config, verifies the SSH + SFTP connection
 // and finally persists the config (as UserRemoteConfig) to ~/.config/baggy.conf. The overwrite
 // parameter exists solely for automated unit tests.
-func NewRemoteConn(compact string, privKeyPath string, overwrite bool) (*RemoteConn, error) {
+func NewRemoteConn(compact string, privKeyPath string, knownHostsPath string, overwrite bool) (*RemoteConn, error) {
 	if !overwrite {
 		if _, statErr := os.Stat(ConfigPath); statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
 			return nil, statErr
@@ -111,15 +113,16 @@ func NewRemoteConn(compact string, privKeyPath string, overwrite bool) (*RemoteC
 	hostname, storageRoot := parts[0], parts[2]
 	port, err := strconv.Atoi(parts[1])
 	if err != nil {
-		return nil, fmt.Errorf("invalid port: %w", err)
+		return nil, fmt.Errorf("invalid port: %v", err)
 	}
 
 	urc := &UserRemoteConfig{
-		User:        user,
-		Hostname:    hostname,
-		PrivKeyPath: privKeyPath,
-		Port:        port,
-		StorageRoot: storageRoot,
+		User:           user,
+		Hostname:       hostname,
+		PrivKeyPath:    privKeyPath,
+		KnownHostsPath: knownHostsPath,
+		Port:           port,
+		StorageRoot:    storageRoot,
 	}
 
 	if err = urc.WriteToFile(); err != nil {
@@ -189,10 +192,17 @@ func LoadRemoteConn() (*RemoteConn, error) {
 		return nil, err
 	}
 
+	kh, err := knownhosts.NewDB(config.KnownHostsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	addr := fmt.Sprintf("%s:%d", config.Hostname, config.Port)
 	sshCfg := &ssh.ClientConfig{
-		User: config.User,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: replace with known_hosts verification before prod. use
+		User:              config.User,
+		Auth:              []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		HostKeyCallback:   kh.HostKeyCallback(),
+		HostKeyAlgorithms: kh.HostKeyAlgorithms(addr),
 	}
 	sshClient, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", config.Hostname, config.Port), sshCfg)
 	if err != nil {
