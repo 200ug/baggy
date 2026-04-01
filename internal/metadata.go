@@ -119,6 +119,28 @@ func Diff(local, remote *Metadata) DiffResult {
 	return result
 }
 
+// Returns files that are present in the old (local) metadata, but absent from the new (remote)
+// one. In practice this means files that are deleted locally since the last sync. Returns nil
+// if old is nil (i.e. no previous sync baseline).
+func LocalDeletions(old, new *Metadata) []Filedata {
+	if old == nil {
+		return nil
+	}
+
+	newMap := make(map[string]struct{}, len(new.Files))
+	for _, f := range new.Files {
+		newMap[f.LocalPath] = struct{}{}
+	}
+	var deleted []Filedata
+	for _, f := range old.Files {
+		if _, exists := newMap[f.LocalPath]; !exists {
+			deleted = append(deleted, f)
+		}
+	}
+
+	return deleted
+}
+
 func excluded(name string) bool {
 	for _, pattern := range Exclusions {
 		if ok, _ := filepath.Match(pattern, name); ok {

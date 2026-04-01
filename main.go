@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -74,6 +75,17 @@ func cmdSync(args []string) {
 	defer remoteConn.SFTP.Close()
 	defer remoteConn.Conn.Close()
 
+	metaPath := filepath.Join(absRoot, internal.Metafile)
+
+	// read old metafile as baseline for deletion detection (nil on first sync)
+	var oldLocalMeta *internal.Metadata
+	if raw, readErr := os.ReadFile(metaPath); readErr == nil {
+		var m internal.Metadata
+		if json.Unmarshal(raw, &m) == nil {
+			oldLocalMeta = &m
+		}
+	}
+
 	// 1) load local meta or initialize from file walk
 	localMeta, err := internal.NewMetadata(absRoot)
 	if err != nil {
@@ -82,7 +94,7 @@ func cmdSync(args []string) {
 	}
 	fmt.Printf("[+] local metadata: files=%d\n", len(localMeta.Files))
 
-	// 2) fetch remote metafile (nil == first sync, remote has no state yet)
+	// 2a) fetch remote metafile (nil == first sync, remote has no state yet)
 	remoteMeta, err := remoteConn.PullRemoteMetafile(absRoot)
 	if err != nil {
 		fmt.Printf("[!] failed to fetch remote metadata: %v\n", err)
@@ -92,6 +104,27 @@ func cmdSync(args []string) {
 		fmt.Printf("[+] remote metadata: files=%d\n", len(remoteMeta.Files))
 	} else {
 		fmt.Println("[+] no remote metadata found (first sync)")
+	}
+
+	// 2b) propagate local deletions to remote before diff
+	deletions := internal.LocalDeletions(oldLocalMeta, localMeta)
+	if len(deletions) > 0 && remoteMeta != nil {
+		for _, f := range deletions {
+			remotePath := path.Join(remoteConn.Config.StorageRoot, filepath.Base(absRoot), f.LocalPath+"."+internal.FileExt)
+			if err = remoteConn.DeleteRemoteFile(remotePath); err != nil {
+				fmt.Printf("[!] delete remote %s: %v\n", f.LocalPath, err)
+				os.Exit(1)
+			}
+			// remove from remoteMeta so Diff doesn't re-download it
+			filtered := remoteMeta.Files[:0]
+			for _, rf := range remoteMeta.Files {
+				if rf.LocalPath != f.LocalPath {
+					filtered = append(filtered, rf)
+				}
+			}
+			remoteMeta.Files = filtered
+			fmt.Printf("[-] %s\n", f.LocalPath)
+		}
 	}
 
 	// 3) compute diff
@@ -188,7 +221,6 @@ func cmdSync(args []string) {
 	}
 
 	// 6) write updated meta locally and push to remote so both sides are equal
-	metaPath := filepath.Join(absRoot, internal.Metafile)
 	if err = localMeta.WriteToFile(metaPath); err != nil {
 		fmt.Printf("[!] failed to write local metadata: %v\n", err)
 		os.Exit(1)

@@ -17,14 +17,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-/*
-	sftp on top of ssh, minimal operations:
-	 	- ReadFile/WriteFile for the plaintext metafile
-	 	- Put/Get for encrypted blobs (the actual files)
-
-	note: to prevent race conditions, we should write a `.lock` file to the server (and always check for its existence before doing ops)
-*/
-
 var (
 	ConfigPath string = ".config/baggy.conf"
 )
@@ -292,6 +284,14 @@ func (rc *RemoteConn) pullSalt() ([]byte, error) {
 	defer f.Close()
 
 	return io.ReadAll(f)
+}
+
+func (rc *RemoteConn) DeleteRemoteFile(remotePath string) error {
+	if err := rc.SFTP.Remove(remotePath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
 }
 
 func (rc *RemoteConn) PullRemoteMetafile(localRoot string) (*Metadata, error) {

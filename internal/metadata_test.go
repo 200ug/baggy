@@ -272,6 +272,59 @@ func TestDiff_BothEmpty(t *testing.T) {
 	}
 }
 
+// localdeletions
+
+func TestLocalDeletions_NilOld_ReturnsNil(t *testing.T) {
+	new := &Metadata{Files: []Filedata{fd("a.txt", "h1", 1)}}
+	if got := LocalDeletions(nil, new); got != nil {
+		t.Errorf("expected nil, got %+v", got)
+	}
+}
+
+func TestLocalDeletions_NoDeletions_ReturnsEmpty(t *testing.T) {
+	m := &Metadata{Files: []Filedata{fd("a.txt", "h1", 1), fd("b.txt", "h2", 2)}}
+	if got := LocalDeletions(m, m); len(got) != 0 {
+		t.Errorf("expected no deletions, got %+v", got)
+	}
+}
+
+func TestLocalDeletions_OneDeleted(t *testing.T) {
+	old := &Metadata{Files: []Filedata{fd("a.txt", "h1", 1), fd("b.txt", "h2", 2)}}
+	new := &Metadata{Files: []Filedata{fd("a.txt", "h1", 1)}}
+
+	got := LocalDeletions(old, new)
+	if len(got) != 1 || got[0].LocalPath != "b.txt" {
+		t.Errorf("expected b.txt deleted, got %+v", got)
+	}
+}
+
+func TestLocalDeletions_AllDeleted(t *testing.T) {
+	old := &Metadata{Files: []Filedata{fd("a.txt", "h1", 1), fd("b.txt", "h2", 2)}}
+	new := &Metadata{Files: []Filedata{}}
+
+	got := LocalDeletions(old, new)
+	if len(got) != 2 {
+		t.Errorf("expected 2 deletions, got %d", len(got))
+	}
+}
+
+func TestLocalDeletions_NewFileNotFlaggedAsDeleted(t *testing.T) {
+	old := &Metadata{Files: []Filedata{fd("a.txt", "h1", 1)}}
+	new := &Metadata{Files: []Filedata{fd("a.txt", "h1", 1), fd("b.txt", "h2", 2)}}
+
+	got := LocalDeletions(old, new)
+	if len(got) != 0 {
+		t.Errorf("expected no deletions, got %+v", got)
+	}
+}
+
+func TestLocalDeletions_BothEmpty_ReturnsEmpty(t *testing.T) {
+	got := LocalDeletions(&Metadata{}, &Metadata{})
+	if len(got) != 0 {
+		t.Errorf("expected no deletions, got %+v", got)
+	}
+}
+
 // writetofile
 
 func TestWriteToFile_RoundTrip(t *testing.T) {
