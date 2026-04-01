@@ -2,7 +2,12 @@
 
 <img src="./docs/baggy.png" align="right" height="80">
 
-Unnecessarily complex wrapper to perform SFTP file synchronization. 
+SFTP wrapper to perform stateful and E2EE file synchronization with a single `sync` command.
+
+- Sync state tracking via metadata files
+- Simplified 3-way merge conflict resolution
+- Password-based encryption (Argon2 -> AES-256-GCM)
+- Cross-platform path handling
 
 ## usage
 
