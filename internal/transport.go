@@ -40,7 +40,7 @@ type UserRemoteConfig struct {
 	KnownHostsPath string `json:"knownhosts_path"`
 	Port           int    `json:"port"`
 	StorageRoot    string `json:"storage_root"` // remote's root path
-	Salt           []byte `json:"salt"` 		// shared across devices via remote
+	Salt           []byte `json:"salt"`         // shared across devices via remote
 }
 
 func UserRemoteConfigFromFile() (*UserRemoteConfig, error) {
@@ -327,4 +327,3 @@ func (rc *RemoteConn) PullRemoteMetafile(localRoot string) (*Metadata, error) {
 
 	return &meta, nil
 }
-
