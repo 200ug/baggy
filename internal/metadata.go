@@ -55,22 +55,6 @@ func NewMetadata(rootPath string) (*Metadata, error) {
 	return meta, nil
 }
 
-func HashFile(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
-	}
-	hashBytes := hash.Sum(nil)
-
-	return fmt.Sprintf("%x", hashBytes), nil
-}
-
 type DiffResult struct {
 	ToUpload   []Filedata
 	ToDownload []Filedata
@@ -142,7 +126,7 @@ func LocalDeletions(old, new *Metadata) []Filedata {
 }
 
 func excluded(name string) bool {
-	for _, pattern := range Exclusions {
+	for _, pattern := range FilenameExclusions {
 		if ok, _ := filepath.Match(pattern, name); ok {
 			return true
 		}

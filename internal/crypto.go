@@ -106,3 +106,19 @@ func (kh *KeyHolder) DecryptFile(src, dst string) error {
 	return os.Rename(tmp, dst)
 }
 
+func HashFile(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+	hashBytes := hash.Sum(nil)
+
+	return fmt.Sprintf("%x", hashBytes), nil
+}
+

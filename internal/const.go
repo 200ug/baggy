@@ -1,6 +1,6 @@
 package internal
 
-var Exclusions []string = []string{
+var FilenameExclusions []string = []string{
 	Metafile,
 	".git",
 	"node_modules",

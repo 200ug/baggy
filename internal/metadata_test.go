@@ -45,9 +45,9 @@ func TestHashFile_Missing(t *testing.T) {
 // excluded
 
 func TestExcluded_ExactMatch(t *testing.T) {
-	orig := Exclusions
-	Exclusions = []string{".git", "node_modules"}
-	t.Cleanup(func() { Exclusions = orig })
+	orig := FilenameExclusions
+	FilenameExclusions = []string{".git", "node_modules"}
+	t.Cleanup(func() { FilenameExclusions = orig })
 
 	if !excluded(".git") {
 		t.Error("expected .git to be excluded")
@@ -55,9 +55,9 @@ func TestExcluded_ExactMatch(t *testing.T) {
 }
 
 func TestExcluded_GlobMatch(t *testing.T) {
-	orig := Exclusions
-	Exclusions = []string{"*.tmp"}
-	t.Cleanup(func() { Exclusions = orig })
+	orig := FilenameExclusions
+	FilenameExclusions = []string{"*.tmp"}
+	t.Cleanup(func() { FilenameExclusions = orig })
 
 	if !excluded("foo.tmp") {
 		t.Error("expected foo.tmp to match *.tmp")
@@ -65,9 +65,9 @@ func TestExcluded_GlobMatch(t *testing.T) {
 }
 
 func TestExcluded_NoMatch(t *testing.T) {
-	orig := Exclusions
-	Exclusions = []string{".git", "*.tmp"}
-	t.Cleanup(func() { Exclusions = orig })
+	orig := FilenameExclusions
+	FilenameExclusions = []string{".git", "*.tmp"}
+	t.Cleanup(func() { FilenameExclusions = orig })
 
 	if excluded("notes.txt") {
 		t.Error("notes.txt should not be excluded")
@@ -123,9 +123,9 @@ func TestWalkDir_HashCorrect(t *testing.T) {
 }
 
 func TestWalkDir_ExcludesMatchingFile(t *testing.T) {
-	orig := Exclusions
-	Exclusions = []string{"*.tmp"}
-	t.Cleanup(func() { Exclusions = orig })
+	orig := FilenameExclusions
+	FilenameExclusions = []string{"*.tmp"}
+	t.Cleanup(func() { FilenameExclusions = orig })
 
 	dir := t.TempDir()
 	tmpFile(t, dir, "keep.txt", "data")
@@ -141,9 +141,9 @@ func TestWalkDir_ExcludesMatchingFile(t *testing.T) {
 }
 
 func TestWalkDir_ExcludesMatchingDir_SkipsSubtree(t *testing.T) {
-	orig := Exclusions
-	Exclusions = []string{"node_modules"}
-	t.Cleanup(func() { Exclusions = orig })
+	orig := FilenameExclusions
+	FilenameExclusions = []string{"node_modules"}
+	t.Cleanup(func() { FilenameExclusions = orig })
 
 	dir := t.TempDir()
 	tmpFile(t, dir, "keep.txt", "data")
