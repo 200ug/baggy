@@ -2,7 +2,6 @@ package internal
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -45,13 +44,11 @@ func IsFileExcluded(path string) bool {
 	filename := filepath.Base(path)
 	for _, pattern := range FilenameExclusions {
 		if ok, _ := filepath.Match(pattern, filename); ok {
-			fmt.Printf("[dbg] excluding %s due to pattern\n", path)
 			return true
 		}
 	}
 
 	if SkipBinaryFiles {
-		fmt.Printf("[dbg] checking magic bytes of %s\n", path)
 		return matchesBinSignature(path)
 	}
 
@@ -81,7 +78,6 @@ func matchesBinSignature(path string) bool {
 
 	for _, sig := range BinarySignatures {
 		if bytes.HasPrefix(header, sig) {
-			fmt.Printf("[dbg] excluding %s due to signature\n", path)
 			return true
 		}
 	}
