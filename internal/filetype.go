@@ -11,12 +11,19 @@ var FilenameExclusions = []string{
 	Metafile, // metafiles track the *local* state, thus shouldn't be mixed with remote's metafile
 	".git",
 	"node_modules",
+	".DS_Store",
 	"*.tmp",
 	"*.exe",
 	"*.bin",
 	"*.elf",
 	"*.mp4",
 	"*.mkv",
+	"*.webm",
+	"*.png",
+	"*.jpeg",
+	"*.jpg",
+	"*.gif",
+	"*.bmp",
 	"*.webm",
 }
 
