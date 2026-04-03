@@ -1,32 +1,29 @@
 package internal
 
 import (
-	"crypto/sha256"
 	"encoding/json"
-	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 )
 
 const (
-	Version  int 	= 1
+	Version  int    = 1
 	Metafile string = ".meta." + FileExt
 )
 
 type Filedata struct {
-	LocalPath	  string `json:"local_path"`
-	ContentHash	  string `json:"content_hash"`
-	ModifiedAt    int64  `json:"modified_at"`
+	LocalPath   string `json:"local_path"`
+	ContentHash string `json:"content_hash"`
+	ModifiedAt  int64  `json:"modified_at"`
 }
 
 type Metadata struct {
-	Version int 		`json:"version"`
-	Files   []Filedata  `json:"files"`
+	Version int        `json:"version"`
+	Files   []Filedata `json:"files"`
 }
 
-func (m *Metadata) WriteToFile(path string) (error) {
+func (m *Metadata) WriteToFile(path string) error {
 	js, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
@@ -38,7 +35,7 @@ func (m *Metadata) WriteToFile(path string) (error) {
 	return nil
 }
 
-// Creates a new Metadata object by either reading from an existing metafile or 
+// Creates a new Metadata object by either reading from an existing metafile or
 // by walking the file tree to generate that data in the first place.
 func NewMetadata(rootPath string) (*Metadata, error) {
 	var meta *Metadata
@@ -49,7 +46,7 @@ func NewMetadata(rootPath string) (*Metadata, error) {
 	}
 	meta = &Metadata{
 		Version: Version,
-		Files: files,
+		Files:   files,
 	}
 
 	return meta, nil
@@ -60,7 +57,7 @@ type DiffResult struct {
 	ToDownload []Filedata
 }
 
-// Computes which files need to be uploaded or downloaded by walking the merged key set 
+// Computes which files need to be uploaded or downloaded by walking the merged key set
 // of local and remote. LocalPath is relative to the sync root so keys match
 // across machines. if remote is nil (first sync) all local files are queued for upload.
 func Diff(local, remote *Metadata) DiffResult {
@@ -76,7 +73,7 @@ func Diff(local, remote *Metadata) DiffResult {
 		return m
 	}
 
-	localMap  := index(local.Files)
+	localMap := index(local.Files)
 	remoteMap := index(remote.Files)
 
 	var result DiffResult
@@ -125,15 +122,6 @@ func LocalDeletions(old, new *Metadata) []Filedata {
 	return deleted
 }
 
-func excluded(name string) bool {
-	for _, pattern := range FilenameExclusions {
-		if ok, _ := filepath.Match(pattern, name); ok {
-			return true
-		}
-	}
-	return false
-}
-
 func walkDir(rootPath string) ([]Filedata, error) {
 	files := make([]Filedata, 0)
 
@@ -141,7 +129,7 @@ func walkDir(rootPath string) ([]Filedata, error) {
 		if err != nil {
 			return err
 		}
-		if excluded(d.Name()) {
+		if IsFileExcluded(path) {
 			if d.IsDir() {
 				return filepath.SkipDir // prevent WalkDir from going deeper into this dir
 			}
@@ -150,7 +138,7 @@ func walkDir(rootPath string) ([]Filedata, error) {
 		if d.IsDir() {
 			return nil
 		}
-		
+
 		info, err := d.Info()
 		if err != nil {
 			return err
@@ -174,4 +162,3 @@ func walkDir(rootPath string) ([]Filedata, error) {
 
 	return files, err
 }
-

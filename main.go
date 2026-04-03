@@ -65,7 +65,10 @@ func cmdInit(args []string) {
 func cmdSync(args []string) {
 	fs := flag.NewFlagSet("sync", flag.ExitOnError)
 	root := fs.String("root", ".", "root directory to sync")
+	skipBins := fs.Bool("skipbins", false, "exclude certain binaries to save bandwidth")
 	fs.Parse(args)
+
+	internal.SkipBinaryFiles = *skipBins // promote to internal's global
 
 	absRoot, err := filepath.Abs(*root)
 	if err != nil {

@@ -4,7 +4,9 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"syscall"
@@ -22,7 +24,7 @@ type KeyHolder struct {
 }
 
 // Takes user input as password from the command line, then derives a key from
-// it (combined with salt, and cost parameters as per the Argon2id library). 
+// it (combined with salt, and cost parameters as per the Argon2id library).
 // Notably all passwords are trimmed, i.e. whitespace won't persist.
 func NewKeyHolder(salt []byte) (*KeyHolder, error) {
 	fmt.Printf("[?] encryption password: ")
@@ -121,4 +123,3 @@ func HashFile(path string) (string, error) {
 
 	return fmt.Sprintf("%x", hashBytes), nil
 }
-
