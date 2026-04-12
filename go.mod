@@ -1,4 +1,4 @@
-module codeberg.org/2ug/baggy
+module codeberg.org/2ug/wsftp
 
 go 1.25.0
 

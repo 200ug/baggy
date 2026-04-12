@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	ConfigPath string = ".config/baggy.conf"
+	ConfigPath string = ".config/wsftp.conf"
 )
 
 func init() {
@@ -77,7 +77,7 @@ type RemoteConn struct {
 }
 
 // Initializes a completely fresh remote connection config, verifies the SSH + SFTP connection
-// and finally persists the config (as UserRemoteConfig) to ~/.config/baggy.conf. The overwrite
+// and finally persists the config (as UserRemoteConfig) to ~/.config/wsftp.conf. The overwrite
 // parameter exists solely for automated unit tests.
 func NewRemoteConn(compact string, privKeyPath string, knownHostsPath string, overwrite bool) (*RemoteConn, error) {
 	if !overwrite {
@@ -176,7 +176,7 @@ func NewRemoteConn(compact string, privKeyPath string, knownHostsPath string, ov
 	return remoteConn, nil
 }
 
-// Load *existing* remote connection configuration from ~/.config/baggy.conf into RemoteConn.
+// Load *existing* remote connection configuration from ~/.config/wsftp.conf into RemoteConn.
 func LoadRemoteConn() (*RemoteConn, error) {
 	config, err := UserRemoteConfigFromFile()
 	if err != nil {

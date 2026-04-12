@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"codeberg.org/2ug/baggy/internal"
+	"codeberg.org/2ug/wsftp/internal"
 )
 
 func CmdStatus(args []string) {
@@ -26,7 +26,7 @@ func CmdStatus(args []string) {
 		os.Exit(1)
 	}
 
-	// load remote conn from ~/.config/baggy.conf; must be manually init'd if absent
+	// load remote conn from ~/.config/wsftp.conf; must be manually init'd if absent
 	remoteConn, err := internal.LoadRemoteConn()
 	if err != nil {
 		fmt.Println("[!] remote config unavailable (run init to configure)")

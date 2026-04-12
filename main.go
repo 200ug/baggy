@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"codeberg.org/2ug/baggy/cmd"
+	"codeberg.org/2ug/wsftp/cmd"
 )
 
-const usage = `usage: baggy <command> [flags]
+const usage = `usage: wsftp <command> [flags]
 
 commands:
   init    configure remote and verify connectivity

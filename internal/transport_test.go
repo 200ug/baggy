@@ -21,7 +21,7 @@ func TestUserRemoteConfigFromFile_Valid(t *testing.T) {
 	dir := t.TempDir()
 	cfg := UserRemoteConfig{User: "u", Hostname: "h", PrivKeyPath: "/k", Port: 22, StorageRoot: "/s"}
 	raw, _ := json.Marshal(cfg)
-	p := filepath.Join(dir, "baggy.conf")
+	p := filepath.Join(dir, "wsftp.conf")
 	os.WriteFile(p, raw, 0o644)
 
 	withConfigPath(t, p)
@@ -36,7 +36,7 @@ func TestUserRemoteConfigFromFile_Valid(t *testing.T) {
 
 func TestUserRemoteConfigFromFile_InvalidJSON(t *testing.T) {
 	dir := t.TempDir()
-	p := filepath.Join(dir, "baggy.conf")
+	p := filepath.Join(dir, "wsftp.conf")
 	os.WriteFile(p, []byte("{bad"), 0o644)
 
 	withConfigPath(t, p)
@@ -46,7 +46,7 @@ func TestUserRemoteConfigFromFile_InvalidJSON(t *testing.T) {
 }
 
 func TestUserRemoteConfigFromFile_Missing(t *testing.T) {
-	withConfigPath(t, "/no/such/baggy.conf")
+	withConfigPath(t, "/no/such/wsftp.conf")
 	if _, err := UserRemoteConfigFromFile(); err == nil {
 		t.Fatal("expected error")
 	}
@@ -56,7 +56,7 @@ func TestUserRemoteConfigFromFile_Missing(t *testing.T) {
 
 func TestWriteToFile_CreatesFileAndDir(t *testing.T) {
 	// target a nested dir that doesn't exist yet to verify mkdirall
-	p := filepath.Join(t.TempDir(), "sub", "baggy.conf")
+	p := filepath.Join(t.TempDir(), "sub", "wsftp.conf")
 	withConfigPath(t, p)
 
 	cfg := &UserRemoteConfig{User: "u", Hostname: "h", PrivKeyPath: "/k", Port: 2222, StorageRoot: "/r"}
@@ -69,7 +69,7 @@ func TestWriteToFile_CreatesFileAndDir(t *testing.T) {
 }
 
 func TestUserRemoteConfig_WriteToFile_RoundTrip(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "baggy.conf")
+	p := filepath.Join(t.TempDir(), "wsftp.conf")
 	withConfigPath(t, p)
 
 	want := &UserRemoteConfig{User: "alice", Hostname: "srv", PrivKeyPath: "/id_ed25519", Port: 22, StorageRoot: "/data"}
@@ -115,7 +115,7 @@ func TestNewRemoteConn_StatError(t *testing.T) {
 		t.Skip("cannot create restricted dir")
 	}
 	t.Cleanup(func() { os.Chmod(restricted, 0o755) })
-	withConfigPath(t, filepath.Join(restricted, "baggy.conf"))
+	withConfigPath(t, filepath.Join(restricted, "wsftp.conf"))
 
 	if _, err := NewRemoteConn("u@h:22:/s", "/k", "", false); err == nil {
 		t.Fatal("expected error for unreadable config path")

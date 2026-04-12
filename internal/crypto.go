@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	FileExt string = "bggy"
+	FileExt string = "wsftp"
 )
 
 type KeyHolder struct {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"codeberg.org/2ug/baggy/internal"
+	"codeberg.org/2ug/wsftp/internal"
 )
 
 func CmdInit(args []string) {

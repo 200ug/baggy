@@ -61,7 +61,7 @@ func TestDecrypt_TooShort(t *testing.T) {
 func TestEncryptFile_DecryptFile_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.Join(dir, "plain.txt")
-	enc := filepath.Join(dir, "plain.txt.bggy")
+	enc := filepath.Join(dir, "plain.txt.wsftp")
 	dst := filepath.Join(dir, "plain.dec.txt")
 
 	want := []byte("file contents to protect")
@@ -89,7 +89,7 @@ func TestEncryptFile_DecryptFile_RoundTrip(t *testing.T) {
 func TestDecryptFile_TamperedFile(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.Join(dir, "plain.txt")
-	enc := filepath.Join(dir, "plain.txt.bggy")
+	enc := filepath.Join(dir, "plain.txt.wsftp")
 
 	os.WriteFile(src, []byte("data"), 0o644)
 
@@ -112,7 +112,7 @@ func TestDecryptFile_AtomicWrite(t *testing.T) {
 	// verify that decryptfile does not leave a .tmp file behind on success
 	dir := t.TempDir()
 	src := filepath.Join(dir, "f.txt")
-	enc := filepath.Join(dir, "f.bggy")
+	enc := filepath.Join(dir, "f.wsftp")
 	dst := filepath.Join(dir, "out.txt")
 
 	os.WriteFile(src, []byte("atomic"), 0o644)

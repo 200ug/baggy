@@ -8,7 +8,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"codeberg.org/2ug/baggy/internal"
+	"codeberg.org/2ug/wsftp/internal"
 )
 
 func CmdSync(args []string) {
@@ -25,7 +25,7 @@ func CmdSync(args []string) {
 		os.Exit(1)
 	}
 
-	// load remote conn from ~/.config/baggy.conf; must be manually init'd if absent
+	// load remote conn from ~/.config/wsftp.conf; must be manually init'd if absent
 	remoteConn, err := internal.LoadRemoteConn()
 	if err != nil {
 		fmt.Println("[!] remote config unavailable (run init to configure)")
@@ -102,7 +102,7 @@ func CmdSync(args []string) {
 			rel := f.LocalPath
 			remotePath := path.Join(remoteConn.Config.StorageRoot, filepath.Base(absRoot), rel+"."+internal.FileExt)
 
-			tmp, err := os.CreateTemp("", "baggy-enc-*")
+			tmp, err := os.CreateTemp("", "wsftp-enc-*")
 			if err != nil {
 				fmt.Printf("[!] upload %s: create temp: %v\n", rel, err)
 				os.Exit(1)
@@ -128,7 +128,7 @@ func CmdSync(args []string) {
 			remotePath := path.Join(remoteConn.Config.StorageRoot, filepath.Base(absRoot), rel+"."+internal.FileExt)
 			dst := filepath.Join(absRoot, rel)
 
-			tmp, err := os.CreateTemp("", "baggy-enc-*")
+			tmp, err := os.CreateTemp("", "wsftp-enc-*")
 			if err != nil {
 				fmt.Printf("[!] download %s: create temp: %v\n", rel, err)
 				os.Exit(1)
