@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	Version  int    = 1
+	Version  int    = 2 // 2026-04-14
 	Metafile string = ".meta." + FileExt
 )
 
