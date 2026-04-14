@@ -1,7 +1,6 @@
 # binary
-baggy
+wsftp
 
-# metafile(s)
-.dbg.meta.bggy
-.meta.bggy
+# metafiles
+*.wsftp
 
