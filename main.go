@@ -7,7 +7,7 @@ import (
 	"codeberg.org/2ug/wsftp/cmd"
 )
 
-const versionCode = "v1.1 (2026-04-14)"
+const versionCode = "v1.2 (2026-04-16)"
 
 const usage = `usage: wsftp <command> [flags]
 
