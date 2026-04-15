@@ -124,3 +124,141 @@ func TestDecryptFile_AtomicWrite(t *testing.T) {
 		t.Error("temp file must not exist after successful DecryptFile")
 	}
 }
+
+// verification file tests
+
+func TestCreateVerificationFile_Success(t *testing.T) {
+	dir := t.TempDir()
+	kh := testKeyHolder()
+
+	err := kh.createVerificationFile(dir)
+	if err != nil {
+		t.Fatalf("createVerificationFile failed: %v", err)
+	}
+
+	// verify file exists
+	verifyPath := filepath.Join(dir, VerificationFile)
+	if _, err := os.Stat(verifyPath); os.IsNotExist(err) {
+		t.Error("verification file was not created")
+	}
+
+	// verify it can be decrypted and matches KnownPlaintext
+	ciphertext, err := os.ReadFile(verifyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plaintext, err := kh.decrypt(ciphertext)
+	if err != nil {
+		t.Fatalf("failed to decrypt verification file: %v", err)
+	}
+	if string(plaintext) != KnownPlaintext {
+		t.Errorf("decrypted content mismatch: got %q, want %q", plaintext, KnownPlaintext)
+	}
+}
+
+func TestVerifyKey_ValidKey(t *testing.T) {
+	dir := t.TempDir()
+	kh := testKeyHolder()
+
+	// create verification file
+	if err := kh.createVerificationFile(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	// verify the same key works
+	valid, err := kh.verifyKey(dir)
+	if err != nil {
+		t.Fatalf("verifyKey failed: %v", err)
+	}
+	if !valid {
+		t.Error("expected valid key to succeed verification")
+	}
+}
+
+func TestVerifyKey_InvalidKey(t *testing.T) {
+	dir := t.TempDir()
+	keyA := make([]byte, 32) // all zeros
+	keyB := make([]byte, 32)
+	keyB[0] = 0x01 // different key
+
+	khA := &KeyHolder{IDKey: keyA}
+	khB := &KeyHolder{IDKey: keyB}
+
+	// create verification file with keyA
+	if err := khA.createVerificationFile(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	// verify keyB fails
+	valid, err := khB.verifyKey(dir)
+	if err != nil {
+		t.Fatalf("verifyKey failed: %v", err)
+	}
+	if valid {
+		t.Error("expected invalid key to fail verification")
+	}
+}
+
+func TestVerifyKey_MissingFile(t *testing.T) {
+	dir := t.TempDir()
+	kh := testKeyHolder()
+
+	// verify without creating file first
+	valid, err := kh.verifyKey(dir)
+	if err != nil {
+		t.Fatalf("verifyKey failed: %v", err)
+	}
+	if valid {
+		t.Error("expected missing file to return false")
+	}
+}
+
+func TestVerifyKey_TamperedFile(t *testing.T) {
+	dir := t.TempDir()
+	kh := testKeyHolder()
+
+	// create verification file
+	if err := kh.createVerificationFile(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	// tamper with the file
+	verifyPath := filepath.Join(dir, VerificationFile)
+	ciphertext, _ := os.ReadFile(verifyPath)
+	ciphertext[len(ciphertext)-1] ^= 0xff
+	os.WriteFile(verifyPath, ciphertext, 0o600)
+
+	// verify tampered file fails
+	valid, err := kh.verifyKey(dir)
+	if err != nil {
+		t.Fatalf("verifyKey failed: %v", err)
+	}
+	if valid {
+		t.Error("expected tampered file to fail verification")
+	}
+}
+
+func TestVerifyKey_WrongPlaintext(t *testing.T) {
+	dir := t.TempDir()
+	kh := testKeyHolder()
+
+	// create verification file with wrong plaintext
+	wrongPlaintext := []byte("wrong plaintext content")
+	ciphertext, err := kh.encrypt(wrongPlaintext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifyPath := filepath.Join(dir, VerificationFile)
+	if err := os.WriteFile(verifyPath, ciphertext, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// verify wrong plaintext fails
+	valid, err := kh.verifyKey(dir)
+	if err != nil {
+		t.Fatalf("verifyKey failed: %v", err)
+	}
+	if valid {
+		t.Error("expected wrong plaintext to fail verification")
+	}
+}

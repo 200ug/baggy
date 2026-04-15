@@ -17,7 +17,7 @@ func CmdSync(args []string) {
 	skipBins := fs.Bool("skipbins", false, "exclude certain binaries to save bandwidth")
 	fs.Parse(args)
 
-	internal.SkipBinaryFiles = *skipBins // promote to internal's global
+	internal.SkipBinaryFiles = *skipBins // promote to internal's global namespace
 
 	absRoot, err := filepath.Abs(*root)
 	if err != nil {
@@ -36,7 +36,8 @@ func CmdSync(args []string) {
 
 	metaPath := filepath.Join(absRoot, internal.Metafile)
 
-	// read old metafile as baseline for deletion detection (nil on first sync)
+	// 1) load local metadata from a metafile (if present) and initialize a fresh version from file walk
+	//	  -> local deletions are detected from the difference between the old and new metafiles
 	var oldLocalMeta *internal.Metadata
 	if raw, readErr := os.ReadFile(metaPath); readErr == nil {
 		var m internal.Metadata
@@ -44,8 +45,6 @@ func CmdSync(args []string) {
 			oldLocalMeta = &m
 		}
 	}
-
-	// 1) load local meta or initialize from file walk
 	localMeta, err := internal.NewMetadata(absRoot)
 	if err != nil {
 		fmt.Printf("[!] failed to load metadata: %v\n", err)
@@ -53,19 +52,20 @@ func CmdSync(args []string) {
 	}
 	fmt.Printf("[+] local metadata: files=%d\n", len(localMeta.Files))
 
-	// 2a) fetch remote metafile (nil == first sync, remote has no state yet)
+	// 2) fetch remote metafile (nil if this is the first sync and no remote state exists yet)
 	remoteMeta, err := remoteConn.PullRemoteMetafile(absRoot)
 	if err != nil {
 		fmt.Printf("[!] failed to fetch remote metadata: %v\n", err)
 		os.Exit(1)
 	}
-	if remoteMeta != nil {
-		fmt.Printf("[+] remote metadata: files=%d\n", len(remoteMeta.Files))
-	} else {
+	isFirstSync := remoteMeta == nil
+	if isFirstSync {
 		fmt.Println("[+] no remote metadata found (first sync)")
+	} else {
+		fmt.Printf("[+] remote metadata: files=%d\n", len(remoteMeta.Files))
 	}
 
-	// 2b) propagate local deletions to remote before diff
+	// 3) propagate local deletions to remote before diff
 	deletions := internal.LocalDeletions(oldLocalMeta, localMeta)
 	if len(deletions) > 0 && remoteMeta != nil {
 		for _, f := range deletions {
@@ -86,16 +86,40 @@ func CmdSync(args []string) {
 		}
 	}
 
-	// 3) compute diff
+	// 4) check if we have an existing verification file somewhere or propagate the just created file to remote
+	remoteVerifPath := path.Join(remoteConn.Config.StorageRoot, filepath.Base(absRoot), internal.VerificationFile)
+	localVerifPath := filepath.Join(absRoot, internal.VerificationFile)
+	if _, err := os.Stat(localVerifPath); os.IsNotExist(err) {
+		if !isFirstSync {
+			if err := remoteConn.PullFile(remoteVerifPath, localVerifPath); err != nil {
+				fmt.Printf("[!] failed to fetch verification file from remote: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("[+] fetched verification file from remote")
+		}
+	} else if err != nil {
+		fmt.Printf("[!] failed to stat verification file: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 5) compute diff (between local and remote)
 	diff := internal.Diff(localMeta, remoteMeta)
 	fmt.Printf("[+] diff: upload=%d download=%d\n", len(diff.ToUpload), len(diff.ToDownload))
 
-	// 4-5) derive key once, then [encrypt + push] or [pull + decrypt] per file
+	// 6) derive key once, then [encrypt + push] or [pull + decrypt] per file
 	if len(diff.ToUpload)+len(diff.ToDownload) > 0 {
-		kh, err := internal.NewKeyHolder(remoteConn.Config.Salt)
+		kh, err := internal.NewKeyHolder(remoteConn.Config.Salt, absRoot, isFirstSync)
 		if err != nil {
 			fmt.Printf("[!] failed to read password: %v\n", err)
 			os.Exit(1)
+		}
+
+		// push the verification file to remote if it was just created
+		if isFirstSync {
+			if err = remoteConn.PushFile(localVerifPath, remoteVerifPath); err != nil {
+				fmt.Printf("[!] failed to push verification file to remote: %v\n", err)
+				os.Exit(1)
+			}
 		}
 
 		for _, f := range diff.ToUpload {
@@ -179,13 +203,13 @@ func CmdSync(args []string) {
 		}
 	}
 
-	// 6) write updated meta locally and push to remote so both sides are equal
+	// 7) sync meta state between local and remote (local always overrides remote)
 	if err = localMeta.WriteToFile(metaPath); err != nil {
 		fmt.Printf("[!] failed to write local metadata: %v\n", err)
 		os.Exit(1)
 	}
-	if err = remoteConn.PushRemoteMetafile(absRoot, localMeta); err != nil {
-		fmt.Printf("[!] failed to push remote metadata: %v\n", err)
+	if err = remoteConn.PushMetafileRemote(absRoot, localMeta); err != nil {
+		fmt.Printf("[!] failed to push metadata to remote: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Println("[+] metadata synced")

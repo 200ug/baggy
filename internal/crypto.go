@@ -5,9 +5,11 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -16,28 +18,92 @@ import (
 )
 
 const (
-	FileExt string = "wsftp"
+	FileExt             string = "wsftp"
+	VerificationFile    string = ".verysecure." + FileExt
+	KnownPlaintext      string = "Ancient Astronauts of Agartha"
+	MaxPasswordAttempts int    = 3
 )
+
+var ErrOutOfAttempts error = errors.New("out of password attempts")
 
 type KeyHolder struct {
 	IDKey []byte
 }
 
-// Takes user input as password from the command line, then derives a key from
-// it (combined with salt, and cost parameters as per the Argon2id library).
+// Takes user input as password from the command line, derives a key from it
+// (combined with salt and cost parameters as per the Argon2id library), and
+// attempts to verify this key against a verification file (ensures consistent
+// passwords) unless this is the initial sync, in which case it creates this
+// verification file.
+//
 // Notably all passwords are trimmed, i.e. whitespace won't persist.
-func NewKeyHolder(salt []byte) (*KeyHolder, error) {
-	fmt.Printf("[?] encryption password: ")
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	fmt.Println()
-	if err != nil {
-		return nil, err
+func NewKeyHolder(salt []byte, rootPath string, isFirstSync bool) (*KeyHolder, error) {
+	for range MaxPasswordAttempts {
+		fmt.Printf("[?] encryption password: ")
+		bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+		fmt.Println()
+		if err != nil {
+			return nil, err
+		}
+
+		password := strings.TrimSpace(string(bytePassword))
+		key := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32) // rfc 9106 section 7.3
+		kh := &KeyHolder{IDKey: key}
+
+		if isFirstSync {
+			err = kh.createVerificationFile(rootPath)
+			return kh, err
+		}
+		isValidKey, err := kh.verifyKey(rootPath)
+		if err != nil {
+			return nil, err
+		} else if isValidKey {
+			return kh, nil
+		} else {
+			fmt.Println("[!] given key was invalid, please try again")
+		}
 	}
 
-	password := strings.TrimSpace(string(bytePassword))
-	key := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32) // rfc 9106 section 7.3
+	return nil, ErrOutOfAttempts
+}
 
-	return &KeyHolder{IDKey: key}, nil
+// Attempt to decrypt the VerificationFile. If the process succeeds and the
+// contents match to KnownPlaintext, we know the key is the same as with every
+// previous sync round.
+func (kh *KeyHolder) verifyKey(rootPath string) (bool, error) {
+	ffp := filepath.Join(rootPath, VerificationFile)
+	if _, err := os.Stat(ffp); os.IsNotExist(err) {
+		// shouldn't happen, as either init or fetch from remote should've been done beforehand
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("failed to stat verification file: %w", err)
+	}
+
+	ciphertext, err := os.ReadFile(ffp)
+	if err != nil {
+		return false, fmt.Errorf("failed to read verification file: %w", err)
+	}
+	plaintext, err := kh.decrypt(ciphertext)
+	if err != nil {
+		return false, nil
+	}
+
+	return string(plaintext) == KnownPlaintext, nil
+}
+
+// Encrypts KnownPlaintext with the assigned key and writes it to the specified
+// root directory. Used during *first* sync (i.e. no remote state yet).
+func (kh *KeyHolder) createVerificationFile(rootPath string) error {
+	ffp := filepath.Join(rootPath, VerificationFile)
+	ciphertext, err := kh.encrypt([]byte(KnownPlaintext))
+	if err != nil {
+		return fmt.Errorf("failed to encrypt verification data: %w", err)
+	}
+	if err := os.WriteFile(ffp, ciphertext, 0o600); err != nil {
+		return fmt.Errorf("failed to write verification file: %w", err)
+	}
+
+	return nil
 }
 
 func (kh *KeyHolder) encrypt(plaintext []byte) ([]byte, error) {

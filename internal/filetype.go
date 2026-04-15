@@ -8,7 +8,8 @@ import (
 )
 
 var FilenameExclusions = []string{
-	Metafile, // metafiles track the *local* state, thus shouldn't be mixed with remote's metafile
+	Metafile,         // metafiles track the *local* state, thus shouldn't be mixed with remote's metafile
+	VerificationFile, // verification files ensure consistent passwords, and should be disconnected from the actual sync
 	".git",
 	"node_modules",
 	".DS_Store",

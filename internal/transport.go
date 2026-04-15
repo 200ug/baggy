@@ -255,7 +255,7 @@ func (rc *RemoteConn) PullFile(remotePath, localPath string) error {
 	return err
 }
 
-func (rc *RemoteConn) PushRemoteMetafile(localRoot string, meta *Metadata) error {
+func (rc *RemoteConn) PushMetafileRemote(localRoot string, meta *Metadata) error {
 	remotePath := path.Join(rc.Config.StorageRoot, filepath.Base(localRoot), Metafile)
 	if err := rc.SFTP.MkdirAll(path.Dir(remotePath)); err != nil {
 		return err

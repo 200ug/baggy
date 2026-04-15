@@ -35,8 +35,8 @@ func (m *Metadata) WriteToFile(path string) error {
 	return nil
 }
 
-// Creates a new Metadata object by either reading from an existing metafile or
-// by walking the file tree to generate that data in the first place.
+// Creates a new Metadata object by walking the file tree (to catch any updates
+// that differ from the possibly initialized metafile).
 func NewMetadata(rootPath string) (*Metadata, error) {
 	var meta *Metadata
 
