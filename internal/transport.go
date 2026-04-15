@@ -160,7 +160,7 @@ func NewRemoteConn(compact string, privKeyPath string, knownHostsPath string, ov
 			cleanup()
 			return nil, err
 		}
-		if err = remoteConn.pushSalt(salt); err != nil {
+		if err = remoteConn.PushSalt(salt); err != nil {
 			cleanup()
 			return nil, err
 		}
@@ -268,7 +268,7 @@ func (rc *RemoteConn) PushMetafileRemote(localRoot string, meta *Metadata) error
 	return json.NewEncoder(f).Encode(meta)
 }
 
-func (rc *RemoteConn) pushSalt(salt []byte) error {
+func (rc *RemoteConn) PushSalt(salt []byte) error {
 	f, err := rc.SFTP.Create(path.Join(rc.Config.StorageRoot, "salt"))
 	if err != nil {
 		return err

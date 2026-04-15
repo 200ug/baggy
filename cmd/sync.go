@@ -86,6 +86,12 @@ func CmdSync(args []string) {
 		}
 	}
 
+	// remote maintenance: push the salt if it has (accidentally) been deleted
+	if _, err := remoteConn.SFTP.Stat(path.Join(remoteConn.Config.StorageRoot, "salt")); os.IsNotExist(err) {
+		remoteConn.PushSalt(remoteConn.Config.Salt)
+		fmt.Println("[+] restored salt to remote")
+	}
+
 	// 4) check if we have an existing verification file somewhere or propagate the just created file to remote
 	remoteVerifPath := path.Join(remoteConn.Config.StorageRoot, filepath.Base(absRoot), internal.VerificationFile)
 	localVerifPath := filepath.Join(absRoot, internal.VerificationFile)
