@@ -6,6 +6,7 @@ SFTP wrapper to perform stateful and E2EE file synchronization with a single `sy
 - Simplified 3-way merge conflict resolution
 - Password-based encryption (Argon2 -> AES-256-GCM)
 - "Smart" file exclusion with unified pattern & magic byte matching
+- Parallel sync operations using a worker pool
 
 ## usage
 
