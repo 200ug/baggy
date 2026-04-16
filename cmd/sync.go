@@ -88,7 +88,10 @@ func CmdSync(args []string) {
 
 	// remote maintenance: push the salt if it has (accidentally) been deleted
 	if _, err := remoteConn.SFTP.Stat(path.Join(remoteConn.Config.StorageRoot, "salt")); os.IsNotExist(err) {
-		remoteConn.PushSalt(remoteConn.Config.Salt)
+		if err := remoteConn.PushSalt(remoteConn.Config.Salt); err != nil {
+			fmt.Printf("[!] failed to push salt to remote: %v\n", err)
+			os.Exit(1)
+		}
 		fmt.Println("[+] restored salt to remote")
 	}
 
@@ -113,12 +116,14 @@ func CmdSync(args []string) {
 	fmt.Printf("[+] diff: upload=%d download=%d\n", len(diff.ToUpload), len(diff.ToDownload))
 
 	// 6) derive key once, then [encrypt + push] or [pull + decrypt] per file
-	if len(diff.ToUpload)+len(diff.ToDownload) > 0 {
+	totalJobs := len(diff.ToUpload) + len(diff.ToDownload)
+	if totalJobs > 0 {
 		kh, err := internal.NewKeyHolder(remoteConn.Config.Salt, absRoot, isFirstSync)
 		if err != nil {
 			fmt.Printf("[!] failed to read password: %v\n", err)
 			os.Exit(1)
 		}
+		pool := internal.NewSyncWorkerPool(kh, remoteConn, absRoot)
 
 		// push the verification file to remote if it was just created
 		if isFirstSync {
@@ -128,75 +133,17 @@ func CmdSync(args []string) {
 			}
 		}
 
-		for _, f := range diff.ToUpload {
-			rel := f.LocalPath
-			remotePath := path.Join(remoteConn.Config.StorageRoot, filepath.Base(absRoot), rel+"."+internal.FileExt)
-
-			tmp, err := os.CreateTemp("", "wsftp-enc-*")
-			if err != nil {
-				fmt.Printf("[!] upload %s: create temp: %v\n", rel, err)
-				os.Exit(1)
-			}
-			tmp.Close()
-
-			if err = kh.EncryptFile(filepath.Join(absRoot, f.LocalPath), tmp.Name()); err != nil {
-				os.Remove(tmp.Name())
-				fmt.Printf("[!] upload %s: encrypt: %v\n", rel, err)
-				os.Exit(1)
-			}
-			if err = remoteConn.PushFile(tmp.Name(), remotePath); err != nil {
-				os.Remove(tmp.Name())
-				fmt.Printf("[!] upload %s: push: %v\n", rel, err)
-				os.Exit(1)
-			}
-			os.Remove(tmp.Name())
-			fmt.Printf("[>] %s\n", rel)
+		// v1.3: handle all diffs inside the worker pool
+		metaResults, err := pool.StartWorkers(diff, totalJobs)
+		if err != nil {
+			fmt.Printf("[!] sync failed: %v\n", err)
+			os.Exit(1)
 		}
 
-		for _, f := range diff.ToDownload {
-			rel := f.LocalPath
-			remotePath := path.Join(remoteConn.Config.StorageRoot, filepath.Base(absRoot), rel+"."+internal.FileExt)
-			dst := filepath.Join(absRoot, rel)
-
-			tmp, err := os.CreateTemp("", "wsftp-enc-*")
-			if err != nil {
-				fmt.Printf("[!] download %s: create temp: %v\n", rel, err)
-				os.Exit(1)
-			}
-			tmp.Close()
-
-			if err = remoteConn.PullFile(remotePath, tmp.Name()); err != nil {
-				os.Remove(tmp.Name())
-				fmt.Printf("[!] download %s: pull: %v\n", rel, err)
-				os.Exit(1)
-			}
-			if err = os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-				os.Remove(tmp.Name())
-				fmt.Printf("[!] download %s: mkdir: %v\n", rel, err)
-				os.Exit(1)
-			}
-			if err = kh.DecryptFile(tmp.Name(), dst); err != nil {
-				os.Remove(tmp.Name())
-				fmt.Printf("[!] download %s: decrypt: %v\n", rel, err)
-				os.Exit(1)
-			}
-			os.Remove(tmp.Name())
-
-			// update local meta entry with the newly written file's hash and modtime
-			info, err := os.Stat(dst)
-			if err != nil {
-				fmt.Printf("[!] download %s: stat: %v\n", rel, err)
-				os.Exit(1)
-			}
-			hash, err := internal.HashFile(dst)
-			if err != nil {
-				fmt.Printf("[!] download %s: hash: %v\n", rel, err)
-				os.Exit(1)
-			}
-			entry := internal.Filedata{LocalPath: rel, ContentHash: hash, ModifiedAt: info.ModTime().Unix()}
+		for _, entry := range metaResults {
 			updated := false
 			for i, lf := range localMeta.Files {
-				if lf.LocalPath == rel {
+				if lf.LocalPath == entry.LocalPath {
 					localMeta.Files[i] = entry
 					updated = true
 					break
@@ -205,7 +152,6 @@ func CmdSync(args []string) {
 			if !updated {
 				localMeta.Files = append(localMeta.Files, entry)
 			}
-			fmt.Printf("[<] %s\n", rel)
 		}
 	}
 
