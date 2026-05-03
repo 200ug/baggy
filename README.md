@@ -1,4 +1,4 @@
-# wsftp
+# WSFTP
 
 SFTP wrapper to perform stateful and E2EE file synchronization with a single `sync` command.
 
@@ -8,7 +8,7 @@ SFTP wrapper to perform stateful and E2EE file synchronization with a single `sy
 - "Smart" file exclusion with unified pattern & magic byte matching
 - Parallel sync operations using a worker pool
 
-## usage
+## Usage
 
 If you're using a non-standard server SSH port and don't yet have entries in `known_hosts` file, run the following command to generate them (otherwise the client won't detect the keys properly, and the initialization checks will always fail):
 
